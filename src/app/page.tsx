@@ -1,103 +1,284 @@
-import Image from "next/image";
+"use client";
+
+import { useState, useEffect } from "react";
+
+type Observation = {
+  id: number;
+  created_at: string;
+  species_guess: string;
+  taxon?: { name: string; preferred_common_name: string | null };
+  photos: { url: string }[];
+  user: { login: string };
+  uri: string;
+  place_guess?: string;
+  description?: string;
+};
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm/6 text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-[family-name:var(--font-geist-mono)] font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  const [friends, setFriends] = useState<string[]>([]);
+  const [input, setInput] = useState("");
+  const [observations, setObservations] = useState<Observation[]>([]);
+  const [monthData, setMonthData] = useState<Record<string, Observation[]>>({});
+  const [loading, setLoading] = useState(false);
+  const [perPage, setPerPage] = useState<number>(10);
+  const [newObservations, setNewObservations] = useState<Observation[]>([]);
+  const [liked, setLiked] = useState<number[]>([]);
+  const [showLiked, setShowLiked] = useState(false);
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
-        </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+  // Date boundaries
+  const now = new Date();
+  const startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const startWeek = new Date(startToday);
+  startWeek.setDate(startWeek.getDate() - 7);
+  const start30Days = new Date();
+  start30Days.setDate(now.getDate() - 30);
+
+  // Load persisted data
+  useEffect(() => {
+    const storedFriends = localStorage.getItem("friends");
+    if (storedFriends) {
+      try { setFriends(JSON.parse(storedFriends)); } catch {}
+    }
+    const storedLikes = localStorage.getItem("liked");
+    if (storedLikes) {
+      try { setLiked(JSON.parse(storedLikes)); } catch {}
+    }
+  }, []);
+
+  // Fetch data
+  useEffect(() => {
+    localStorage.setItem("friends", JSON.stringify(friends));
+    if (!friends.length) {
+      setObservations([]);
+      setMonthData({});
+      setNewObservations([]);
+      return;
+    }
+    setLoading(true);
+    (async () => {
+      try {
+        // General fetch
+        const generalArrays = await Promise.all(
+          friends.map(async (user) => {
+            const res = await fetch(
+              `https://api.inaturalist.org/v1/observations?user_login=${user}` +
+              `&order=desc&order_by=created_at&per_page=${perPage}`
+            );
+            const json = await res.json();
+            return (json.results || []).map((o: any) => ({
+              id: o.id,
+              created_at: o.created_at,
+              species_guess: o.species_guess,
+              taxon: o.taxon,
+              photos: o.photos,
+              user: o.user,
+              uri: o.uri,
+              place_guess: o.place_guess,
+              description: o.description,
+            } as Observation));
+          })
+        );
+        const allGeneral = generalArrays.flat();
+        setObservations(allGeneral);
+
+        // New since last visit
+        const lastVisit = localStorage.getItem("lastVisit");
+        const lastDate = lastVisit ? new Date(lastVisit) : new Date(0);
+        setNewObservations(
+          allGeneral.filter((o) => new Date(o.created_at) > lastDate)
+        );
+        localStorage.setItem("lastVisit", new Date().toISOString());
+
+        // 30-day window fetch
+        const monthArrays = await Promise.all(
+          friends.map(async (user) => {
+            const d1 = start30Days.toISOString().split("T")[0];
+            const d2 = startWeek.toISOString().split("T")[0];
+            const res = await fetch(
+              `https://api.inaturalist.org/v1/observations?user_login=${user}` +
+              `&d1=${d1}&d2=${d2}&order=desc&order_by=created_at&per_page=200`
+            );
+            const json = await res.json();
+            return (json.results || []).map((o: any) => ({
+              id: o.id,
+              created_at: o.created_at,
+              species_guess: o.species_guess,
+              taxon: o.taxon,
+              photos: o.photos,
+              user: o.user,
+              uri: o.uri,
+              place_guess: o.place_guess,
+              description: o.description,
+            } as Observation));
+          })
+        );
+        const map: Record<string, Observation[]> = {};
+        friends.forEach((user, i) => { map[user] = monthArrays[i]; });
+        setMonthData(map);
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [friends, perPage]);
+
+  // Persist likes
+  useEffect(() => {
+    localStorage.setItem("liked", JSON.stringify(liked));
+  }, [liked]);
+
+  const addFriend = (e: React.FormEvent) => {
+    e.preventDefault();
+    const name = input.trim();
+    if (name && !friends.includes(name)) setFriends([...friends, name]);
+    setInput("");
+  };
+  const removeFriend = (name: string) => setFriends((prev) => prev.filter((u) => u !== name));
+  const toggleLike = (id: number) => {
+    setLiked((prev) => prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]);
+  };
+
+  // Filter for general sections
+  const sectionForUser = (user: string, from: Date, to?: Date) =>
+    observations.filter((o) => {
+      const d = new Date(o.created_at);
+      return o.user.login === user && d >= from && (to ? d < to : true);
+    });
+
+  // Section renderer
+  const renderSection = (
+    title: string,
+    from: Date,
+    to?: Date,
+    useMonthMap = false
+  ) => (
+    <div className="mb-8" key={title}>
+      <h2 className="text-4xl font-serif font-bold mb-4 border-b-2 border-green-700 pb-2">{title}</h2>
+      {friends.map((u) => {
+        const items = useMonthMap ? monthData[u] || [] : sectionForUser(u, from, to);
+        return (
+          <div key={u} className="mb-6">
+            <h3 className="font-serif font-semibold text-2xl mb-2">{u}</h3>
+            {items.length ? (
+              <div className="flex overflow-x-auto gap-4">
+                {items.map((o) => (
+                  <div key={o.id} className="flex-shrink-0 w-60 border rounded-lg bg-white shadow hover:shadow-lg transition-shadow duration-200">
+                    <div className="p-2">
+                      <p className="font-serif font-semibold text-lg">
+                        {o.taxon?.preferred_common_name || o.species_guess}
+                        <span className="italic text-sm pl-1">({o.taxon?.name})</span>
+                      </p>
+                    </div>
+                    {o.photos[0] && (
+                      <a href={o.uri} target="_blank" rel="noopener noreferrer">
+                        <img src={o.photos[0].url.replace("square","medium")} alt={o.species_guess} className="w-full h-40 object-cover rounded-b-lg" />
+                      </a>
+                    )}
+                    <div className="p-2">
+                      <p className="font-serif"><span className="font-bold">Location:</span> {o.place_guess}</p>
+                      <p className="text-sm mt-1 font-serif">
+                        {o.description ? (o.description.length > 40 ? o.description.slice(0,40) + "..." : o.description) : ""}
+                      </p>
+                      <a href={o.uri} className="text-blue-600 underline font-serif block mt-2 transition-colors duration-200 hover:text-blue-800" target="_blank" rel="noopener noreferrer">
+                        View on iNaturalist
+                      </a>
+                      <button onClick={() => toggleLike(o.id)} className="mt-2 text-green-700 text-2xl transition-transform duration-200 hover:scale-110">
+                        {liked.includes(o.id) ? "❤️" : "🤍"}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="font-serif">No observations for {u} in this period.</p>
+            )}
+          </div>
+        );
+      })}
     </div>
+  );
+
+  const likedObservations = observations.filter((o) => liked.includes(o.id));
+
+  return (
+    <>
+      <header className="fixed top-0 left-0 w-full bg-white shadow-md z-20">
+        <div className="max-w-4xl mx-auto h-16 flex items-center px-6">
+          <h1 className="text-2xl font-serif font-bold text-green-700">alt‑iNat Feed</h1>
+        </div>
+      </header>
+      <main className="pt-24 p-8 max-w-4xl mx-auto bg-green-50 text-gray-900 font-sans">
+        <div className="flex flex-wrap items-center gap-4 mb-8">
+          <form onSubmit={addFriend} className="flex gap-2">
+            <input
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="Enter username"
+              className="border px-4 py-2 rounded shadow-inner focus:outline-none focus:ring-2 focus:ring-green-400"
+            />
+            <button className="bg-green-600 text-white px-4 py-2 rounded-full hover:bg-green-700 transition-colors duration-200 font-semibold">
+              Add Friend
+            </button>
+          </form>
+          {friends.map((u) => (
+            <span key={u} className="inline-flex items-center bg-green-100 px-3 py-1 rounded-full font-serif">
+              {u}
+              <button onClick={() => removeFriend(u)} className="ml-2 text-red-600 font-bold hover:text-red-800 transition-colors duration-200">✕</button>
+            </span>
+          ))}
+          <div className="ml-auto flex gap-2">
+            <label className="font-serif">
+              Items per user:
+              <select value={perPage} onChange={(e) => setPerPage(Number(e.target.value))} className="ml-2 border rounded px-2 py-1 focus:outline-none">
+                {[5,10,15,20].map(n => <option key={n} value={n}>{n}</option>)}
+              </select>
+            </label>
+            <button onClick={() => setShowLiked(prev => !prev)} className="border px-3 py-2 rounded-full hover:bg-green-100 transition-colors duration-200 font-medium">
+              {showLiked ? "Show All" : "Show Liked"}
+            </button>
+          </div>
+        </div>
+
+        {loading && <p className="font-serif">Loading…</p>}
+
+        {!showLiked ? (
+          <>
+            {renderSection("Today", startToday)}
+            {renderSection("This Week", startWeek, startToday)}
+            {renderSection("Last 30 Days", start30Days, startWeek, true)}
+          </>
+        ) : (
+          <section className="mb-8">
+            <h2 className="text-4xl font-serif font-bold mb-4 text-green-700">Liked Observations</h2>
+            {likedObservations.length ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {likedObservations.map(o => (
+                  <div key={o.id} className="border p-4 rounded-lg bg-white shadow hover:shadow-lg transition-shadow duration-200">
+                    {o.photos[0] && (
+                      <a href={o.uri} target="_blank" rel="noopener noreferrer">
+                        <img src={o.photos[0].url.replace("square","medium")} alt={o.species_guess} className="w-full h-40 object-cover rounded-t-lg" />
+                      </a>
+                    )}
+                    <h3 className="mt-2 font-serif font-semibold text-lg">
+                      {o.taxon?.preferred_common_name || o.species_guess} <span className="italic text-sm">({o.taxon?.name})</span>
+                    </h3>
+                    <p className="mt-2 font-serif"><span className="font-bold">Location:</span> {o.place_guess}</p>
+                    <p className="text-sm mt-1 font-serif">
+                      {o.description && (o.description.length > 40 ? o.description.slice(0,40)+"..." : o.description)}
+                    </p>
+                    <a href={o.uri} className="text-blue-600 underline font-serif block mt-2 hover:text-blue-800 transition-colors duration-200" target="_blank" rel="noopener noreferrer">
+                      View on iNaturalist
+                    </a>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="font-serif">No liked observations yet.</p>
+            )}
+          </section>
+        )}
+      </main>
+    </>
   );
 }
