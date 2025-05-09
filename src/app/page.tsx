@@ -1,5 +1,4 @@
 /* eslint-disable @typescript-eslint/no-unused-vars, @typescript-eslint/no-explicit-any, react-hooks/exhaustive-deps, @next/next/no-img-element */
-
 "use client";
 
 import { useState, useEffect } from "react";
@@ -148,7 +147,7 @@ export default function Home() {
       return o.user.login === user && d >= from && (to ? d < to : true);
     });
 
-  // Section renderer
+  // Section renderer with responsive grid
   const renderSection = (
     title: string,
     from: Date,
@@ -162,39 +161,39 @@ export default function Home() {
         return (
           <div key={u} className="mb-6">
             <h3 className="font-serif font-semibold text-2xl mb-2">{u}</h3>
-            {items.length ? (
-              <div className="flex overflow-x-auto gap-4">
-                {items.map((o) => (
-                  <div key={o.id} className="flex-shrink-0 w-60 border rounded-lg bg-white shadow hover:shadow-lg transition-shadow duration-200">
-                    <div className="p-2">
-                      <p className="font-serif font-semibold text-lg">
-                        {o.taxon?.preferred_common_name || o.species_guess}
-                        <span className="italic text-sm pl-1">({o.taxon?.name})</span>
-                      </p>
-                    </div>
-                    {o.photos[0] && (
-                      <a href={o.uri} target="_blank" rel="noopener noreferrer">
-                        <img src={o.photos[0].url.replace("square","medium")} alt={o.species_guess} className="w-full h-40 object-cover rounded-b-lg" />
-                      </a>
-                    )}
-                    <div className="p-2">
-                      <p className="font-serif"><span className="font-bold">Location:</span> {o.place_guess}</p>
-                      <p className="text-sm mt-1 font-serif">
-                        {o.description ? (o.description.length > 40 ? o.description.slice(0,40) + "..." : o.description) : ""}
-                      </p>
-                      <a href={o.uri} className="text-blue-600 underline font-serif block mt-2 transition-colors duration-200 hover:text-blue-800" target="_blank" rel="noopener noreferrer">
-                        View on iNaturalist
-                      </a>
-                      <button onClick={() => toggleLike(o.id)} className="mt-2 text-green-700 text-2xl transition-transform duration-200 hover:scale-110">
-                        {liked.includes(o.id) ? "❤️" : "🤍"}
-                      </button>
-                    </div>
+            <div className="grid grid-cols-1 gap-4
+                                 sm:flex sm:overflow-x-auto sm:gap-4
+                                 md:grid md:grid-cols-2
+                                 lg:grid-cols-3 xl:grid-cols-4">
+              {items.map((o) => (
+                <div key={o.id} className="w-full sm:flex-shrink-0 sm:w-60 border rounded-lg bg-white shadow hover:shadow-lg transition-shadow duration-200">
+                  <div className="p-2">
+                    <p className="font-serif font-semibold text-lg">
+                      {o.taxon?.preferred_common_name || o.species_guess}
+                      <span className="italic text-sm pl-1">({o.taxon?.name})</span>
+                    </p>
                   </div>
-                ))}
-              </div>
-            ) : (
-              <p className="font-serif">No observations for {u} in this period.</p>
-            )}
+                  {o.photos[0] && (
+                    <a href={o.uri} target="_blank" rel="noopener noreferrer">
+                      <img src={o.photos[0].url.replace("square","medium")} alt={o.species_guess}
+                        className="w-full h-40 object-cover rounded-b-lg" />
+                    </a>
+                  )}
+                  <div className="p-2">
+                    <p className="font-serif"><span className="font-bold">Location:</span> {o.place_guess}</p>
+                    <p className="text-sm mt-1 font-serif">
+                      {o.description && (o.description.length > 40 ? o.description.slice(0,40) + "..." : o.description)}
+                    </p>
+                    <a href={o.uri} className="text-blue-600 underline font-serif block mt-2 hover:text-blue-800 transition-colors duration-200" target="_blank" rel="noopener noreferrer">
+                      View on iNaturalist
+                    </a>
+                    <button onClick={() => toggleLike(o.id)} className="mt-2 text-green-700 text-2xl transition-transform duration-200 hover:scale-110">
+                      {liked.includes(o.id) ? "❤️" : "🤍"}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         );
       })}
@@ -207,18 +206,14 @@ export default function Home() {
     <>
       <header className="fixed top-0 left-0 w-full bg-white shadow-md z-20">
         <div className="max-w-4xl mx-auto h-16 flex items-center px-6">
-          <h1 className="text-2xl font-serif font-bold text-green-700">alt‑iNat Feed</h1>
+          <h1 className="text-2xl font-serif font-bold text-green-700">alt-iNat Feed</h1>
         </div>
       </header>
       <main className="pt-24 p-8 max-w-4xl mx-auto bg-green-50 text-gray-900 font-sans">
-        <div className="flex flex-wrap items-center gap-4 mb-8">
+        <div className="flex flex-col gap-4 mb-8 sm:flex-row sm:items-center sm:gap-4">
           <form onSubmit={addFriend} className="flex gap-2">
-            <input
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="Enter username"
-              className="border px-4 py-2 rounded shadow-inner focus:outline-none focus:ring-2 focus:ring-green-400"
-            />
+            <input value={input} onChange={(e) => setInput(e.target.value)} placeholder="Enter username"
+              className="border px-4 py-2 rounded shadow-inner focus:outline-none focus:ring-2 focus:ring-green-400" />
             <button className="bg-green-600 text-white px-4 py-2 rounded-full hover:bg-green-700 transition-colors duration-200 font-semibold">
               Add Friend
             </button>
@@ -272,13 +267,11 @@ export default function Home() {
                     <a href={o.uri} className="text-blue-600 underline font-serif block mt-2 hover:text-blue-800 transition-colors duration-200" target="_blank" rel="noopener noreferrer">
                       View on iNaturalist
                     </a>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="font-serif">No liked observations yet.</p>
-            )}
-          </section>
+---</div>
+              ))}
+            </div>
+          ) : <p className="font-serif">No liked observations yet.</p>}
+        </section>
         )}
       </main>
     </>
